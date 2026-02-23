@@ -54,10 +54,15 @@ async function post(url, body) {
     },
     body: JSON.stringify(body)
   });
+  
   return r.json();
+  
 }
 
 async function get(url) {
+  console.log("URL:", apiUrl);
+  console.log("HEADERS:", Object.fromEntries(newHeaders.entries()));
+
   const r = await fetch(url, {
     headers:{
       "X-Secret-Key": btoa(btoa(SECRET_KEY)),
@@ -164,5 +169,6 @@ document.getElementById("send").onclick = async () => {
 
 </body>
 </html>
+
 
 
