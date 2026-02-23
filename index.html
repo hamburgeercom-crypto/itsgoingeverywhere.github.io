@@ -45,6 +45,8 @@ function say(t){ chatBox.textContent += "\n" + t; chatBox.scrollTop = chatBox.sc
 // HTTP HELPERS
 // ─────────────────────────────────────────────────────────
 async function post(url, body) {
+  console.log("URL:", url);
+  console.log("HEADERS:", "application/json");
   const r = await fetch(url, {
     method:"POST",
     headers:{
@@ -60,9 +62,6 @@ async function post(url, body) {
 }
 
 async function get(url) {
-  console.log("URL:", apiUrl);
-  console.log("HEADERS:", Object.fromEntries(newHeaders.entries()));
-
   const r = await fetch(url, {
     headers:{
       "X-Secret-Key": btoa(btoa(SECRET_KEY)),
@@ -169,6 +168,7 @@ document.getElementById("send").onclick = async () => {
 
 </body>
 </html>
+
 
 
 
