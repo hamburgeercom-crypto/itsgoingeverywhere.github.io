@@ -45,8 +45,6 @@ function say(t){ chatBox.textContent += "\n" + t; chatBox.scrollTop = chatBox.sc
 // HTTP HELPERS
 // ─────────────────────────────────────────────────────────
 async function post(url, body) {
-  console.log("URL:", url);
-  console.log("HEADERS:", "application/json");
   const r = await fetch(url, {
     method:"POST",
     headers:{
@@ -168,6 +166,7 @@ document.getElementById("send").onclick = async () => {
 
 </body>
 </html>
+
 
 
 
