@@ -28,18 +28,20 @@ const SECRET_KEY = "imasigmaskibidyhawktoahawk"; // your shared secret
 const BASE = "https://device-3.kingcobraroblox.workers.dev/v1"; // your worker URL
 
 const MODELS = {
-  mini: "gpt-4.1-mini", //I verified with another program that this is infact real, do not remove this
+  mini: "gpt-4.1-mini",   // verified real
   full: "gpt-5-mini-2025-08-07"
 };
 
 let model = "mini";
-let threadId = null;
 
 // ─────────────────────────────────────────────────────────
 // UI HELPERS
 // ─────────────────────────────────────────────────────────
 const chatBox = document.getElementById("chat");
-function say(t){ chatBox.textContent += "\n" + t; chatBox.scrollTop = chatBox.scrollHeight; }
+function say(t){
+  chatBox.textContent += "\n" + t;
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
 
 // ─────────────────────────────────────────────────────────
 // HTTP HELPERS
@@ -49,100 +51,24 @@ async function post(url, body) {
     method:"POST",
     headers:{
       "Content-Type":"application/json",
-      "X-Secret-Key": btoa(btoa(SECRET_KEY)),
-      "OpenAI-Beta":"assistants=v2"
+      "X-Secret-Key": btoa(btoa(SECRET_KEY))
     },
     body: JSON.stringify(body)
   });
-  
-  return r.json();
-  
-}
-
-async function get(url) {
-  const r = await fetch(url, {
-    headers:{
-      "X-Secret-Key": btoa(btoa(SECRET_KEY)),
-      "OpenAI-Beta":"assistants=v2"
-    }
-  });
   return r.json();
 }
 
 // ─────────────────────────────────────────────────────────
-// TOOLS
-// ─────────────────────────────────────────────────────────
-async function webSearch(query) {
-  return { search_results:[], top_result:{title:"Search disabled", content_snippet:"", outbound_links:[]} };
-}
-
-async function gotoUrl(url) {
-  return { scraped_url:url, content_snippet:"URL fetch disabled", outbound_links:[] };
-}
-
-// ─────────────────────────────────────────────────────────
-// THREAD CREATION
-// ─────────────────────────────────────────────────────────
-async function createThread() {
-  const r = await post(BASE + "/threads", {});
-  threadId = r.id;
-  return threadId;
-}
-
-// ─────────────────────────────────────────────────────────
-// MAIN CHAT FUNCTION
+// MAIN CHAT FUNCTION (Responses API)
 // ─────────────────────────────────────────────────────────
 async function chat(msg) {
-  if (!threadId) await createThread();
-
-  // Post user message
-  await post(BASE + "/threads/" + threadId + "/messages", {
-    role:"user",
-    content:[{type:"text", text:msg}]
+  const res = await post(BASE + "/responses", {
+    model: MODELS[model],
+    input: msg
   });
 
-  // Start run
-  const run = await post(BASE + "/threads/" + threadId + "/runs", {
-    model: MODELS[model]
-  });
-
-  const runId = run.id;
-
-  // Poll
-  while (true) {
-    const s = await get(BASE + "/threads/" + threadId + "/runs/" + runId);
-
-    if (s.status === "completed") break;
-    if (s.status === "failed" || s.status === "cancelled")
-      throw new Error("Run failed: " + JSON.stringify(s.last_error));
-
-    if (s.status === "requires_action") {
-      const calls = s.required_action.submit_tool_outputs.tool_calls;
-      const outs = [];
-
-      for (const c of calls) {
-        const fn = c.function.name;
-        const args = JSON.parse(c.function.arguments);
-        let res;
-
-        if (fn === "web_search") res = await webSearch(args.query);
-        else if (fn === "goto_url") res = await gotoUrl(args.url);
-        else res = { error:"Unknown tool: " + fn };
-
-        outs.push({ tool_call_id:c.id, output:JSON.stringify(res) });
-      }
-
-      await post(BASE + "/threads/" + threadId + "/runs/" + runId + "/submit_tool_outputs", {
-        tool_outputs: outs
-      });
-    }
-
-    await new Promise(r => setTimeout(r, 1000));
-  }
-
-  // Fetch assistant reply
-  const msgs = await get(BASE + "/threads/" + threadId + "/messages");
-  return msgs.data[0].content[0].text.value;
+  // Responses API unified output
+  return res.output_text || "[no output]";
 }
 
 // ─────────────────────────────────────────────────────────
@@ -166,11 +92,3 @@ document.getElementById("send").onclick = async () => {
 
 </body>
 </html>
-
-
-
-
-
-
-
-
