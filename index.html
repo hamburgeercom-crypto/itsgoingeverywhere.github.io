@@ -68,7 +68,7 @@ async function chat(msg) {
   });
 
   // Responses API unified output
-  return res.output || "[no output]";
+  return res.output[1].content[0].text || "[no output]";
 }
 
 // ─────────────────────────────────────────────────────────
@@ -92,5 +92,6 @@ document.getElementById("send").onclick = async () => {
 
 </body>
 </html>
+
 
 
