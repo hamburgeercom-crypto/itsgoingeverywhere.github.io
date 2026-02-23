@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>GPT‑5 Chat (device‑3)</title>
+  <style>
+    body { font-family: sans-serif; background:#111; color:#eee; margin:0; }
+    #chat { padding:20px; height:80vh; overflow-y:auto; white-space:pre-wrap; }
+    #inputBar { display:flex; padding:10px; background:#222; }
+    #msg { flex:1; padding:10px; font-size:16px; }
+    #send { padding:10px 20px; font-size:16px; }
+  </style>
+</head>
+<body>
+
+<div id="chat">═══ GPT‑5 Chat (device‑3) ═══</div>
+
+<div id="inputBar">
+  <input id="msg" placeholder="Type a message…">
+  <button id="send">Send</button>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────────────────
+const SECRET_KEY = "imasigmaskibidyhawktoahawk"; // your shared secret
+const BASE = "https://device-3.kingcobraroblox.workers.dev/v1"; // your worker URL
+
+const MODELS = {
+  mini: "gpt-5-mini",
+  full: "gpt-5"
+};
+
+let model = "mini";
+let threadId = null;
+
+// ─────────────────────────────────────────────────────────
+// UI HELPERS
+// ─────────────────────────────────────────────────────────
+const chatBox = document.getElementById("chat");
+function say(t){ chatBox.textContent += "\n" + t; chatBox.scrollTop = chatBox.scrollHeight; }
+
+// ─────────────────────────────────────────────────────────
+// HTTP HELPERS
+// ─────────────────────────────────────────────────────────
+async function post(url, body) {
+  const r = await fetch(url, {
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "X-Secret-Key": btoa(btoa(SECRET_KEY)),
+      "OpenAI-Beta":"assistants=v2"
+    },
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+
+async function get(url) {
+  const r = await fetch(url, {
+    headers:{
+      "X-Secret-Key": btoa(btoa(SECRET_KEY)),
+      "OpenAI-Beta":"assistants=v2"
+    }
+  });
+  return r.json();
+}
+
+// ─────────────────────────────────────────────────────────
+// TOOLS
+// ─────────────────────────────────────────────────────────
+async function webSearch(query) {
+  return { search_results:[], top_result:{title:"Search disabled", content_snippet:"", outbound_links:[]} };
+}
+
+async function gotoUrl(url) {
+  return { scraped_url:url, content_snippet:"URL fetch disabled", outbound_links:[] };
+}
+
+// ─────────────────────────────────────────────────────────
+// THREAD CREATION
+// ─────────────────────────────────────────────────────────
+async function createThread() {
+  const r = await post(BASE + "/threads", {});
+  threadId = r.id;
+  return threadId;
+}
+
+// ─────────────────────────────────────────────────────────
+// MAIN CHAT FUNCTION
+// ─────────────────────────────────────────────────────────
+async function chat(msg) {
+  if (!threadId) await createThread();
+
+  // Post user message
+  await post(BASE + "/threads/" + threadId + "/messages", {
+    role:"user",
+    content:[{type:"text", text:msg}]
+  });
+
+  // Start run
+  const run = await post(BASE + "/threads/" + threadId + "/runs", {
+    model: MODELS[model]
+  });
+
+  const runId = run.id;
+
+  // Poll
+  while (true) {
+    const s = await get(BASE + "/threads/" + threadId + "/runs/" + runId);
+
+    if (s.status === "completed") break;
+    if (s.status === "failed" || s.status === "cancelled")
+      throw new Error("Run failed: " + JSON.stringify(s.last_error));
+
+    if (s.status === "requires_action") {
+      const calls = s.required_action.submit_tool_outputs.tool_calls;
+      const outs = [];
+
+      for (const c of calls) {
+        const fn = c.function.name;
+        const args = JSON.parse(c.function.arguments);
+        let res;
+
+        if (fn === "web_search") res = await webSearch(args.query);
+        else if (fn === "goto_url") res = await gotoUrl(args.url);
+        else res = { error:"Unknown tool: " + fn };
+
+        outs.push({ tool_call_id:c.id, output:JSON.stringify(res) });
+      }
+
+      await post(BASE + "/threads/" + threadId + "/runs/" + runId + "/submit_tool_outputs", {
+        tool_outputs: outs
+      });
+    }
+
+    await new Promise(r => setTimeout(r, 1000));
+  }
+
+  // Fetch assistant reply
+  const msgs = await get(BASE + "/threads/" + threadId + "/messages");
+  return msgs.data[0].content[0].text.value;
+}
+
+// ─────────────────────────────────────────────────────────
+// SEND BUTTON
+// ─────────────────────────────────────────────────────────
+document.getElementById("send").onclick = async () => {
+  const raw = document.getElementById("msg").value.trim();
+  if (!raw) return;
+
+  say("\nYou: " + raw);
+  document.getElementById("msg").value = "";
+
+  try {
+    const reply = await chat(raw);
+    say("GPT: " + reply);
+  } catch (e) {
+    say("[error: " + e.message + "]");
+  }
+};
+</script>
+
+</body>
+</html>
